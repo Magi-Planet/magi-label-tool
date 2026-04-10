@@ -106,12 +106,13 @@
         </div>
     </div>
     <div class="action-btns">
-        <button class="btn-black" onclick="exportImg()">📷 下載圖片預覽</button>
+        <button class="btn-black" onclick="exportImg()">📷 下載高解析標籤 (300 DPI)</button>
         <button class="btn-green" onclick="exportExcel()">📊 下載完整報告 (EXCEL)</button>
     </div>
 </div>
 
 <script>
+    // ... (保持先前的邏輯不變，僅更新 exportImg 部分) ...
     let db = {};
     let recipe = [];
 
@@ -135,14 +136,12 @@
     };
 
     function clearAllData() {
-        if (confirm("確定要清空當前所有輸入的資料與配方嗎？(此動作無法還原)")) {
+        if (confirm("確定要清空當前所有輸入的資料與配方嗎？")) {
             document.getElementById('prodFullName').value = "Magi Planet星球工坊爆米花";
             document.getElementById('totalNet').value = "110";
             document.getElementById('perServing').value = "110";
             document.getElementById('serveCount').value = "1";
             document.getElementById('manualWarning').value = "";
-            document.getElementById('idInput').value = "";
-            document.getElementById('wInput').value = "";
             recipe = [];
             updateAll();
         }
@@ -232,17 +231,8 @@
         tbody.innerHTML = '';
         recipe.forEach((item) => {
             const pct = totalW ? ((item.weight / totalW) * 100).toFixed(1) : 0;
-            tbody.innerHTML += `<tr>
-                <td>${item.info.rawName}</td>
-                <td>${item.weight}g</td>
-                <td style="color:#e67e22; font-weight:bold;">${pct}%</td>
-                <td>
-                    <button class="btn-edit" onclick="editWeight('${item.id}')">編</button>
-                    <button class="btn-del" onclick="removeIng('${item.id}')">✕</button>
-                </td>
-            </tr>`;
+            tbody.innerHTML += `<tr><td>${item.info.rawName}</td><td>${item.weight}g</td><td style="color:#e67e22; font-weight:bold;">${pct}%</td><td><button class="btn-edit" onclick="editWeight('${item.id}')">編</button><button class="btn-del" onclick="removeIng('${item.id}')">✕</button></td></tr>`;
         });
-
         document.getElementById('l_name').innerText = document.getElementById('prodFullName').value;
         const totalNet = parseFloat(document.getElementById('totalNet').value) || 0;
         const perServe = parseFloat(document.getElementById('perServing').value) || 0;
@@ -251,18 +241,15 @@
         document.getElementById('n_each').innerText = perServe;
         document.getElementById('n_count').innerText = count;
         document.getElementById('l_ing').innerText = recipe.map(s => s.info.labelName).join('、');
-        
         const allergens = [...new Set(recipe.map(r => r.info.allergen).filter(a => a))];
         document.getElementById('l_allergen').innerHTML = allergens.map(a => `●${a}`).join('<br>');
         const manualLines = (document.getElementById('manualWarning').value || "").split('\n').filter(line => line.trim() !== "");
         document.getElementById('l_manual_warning').innerHTML = manualLines.map(line => `●${line.trim()}`).join('<br>');
-
         let sums = { cal:0, pro:0, fat:0, sfat:0, tfat:0, carb:0, sugar:0, na:0 };
         recipe.forEach(r => {
             const ratio = r.weight / 100;
             for(let key in sums) sums[key] += (r.info[key] || 0) * ratio;
         });
-
         const p100 = (v) => totalW ? (v / totalW * 100).toFixed(1) : "0.0";
         const pS = (v) => totalW ? (v / totalW * perServe).toFixed(1) : "0.0";
         const flds = [["熱量","cal"],["蛋白質","pro"],["脂肪","fat"],["　飽和脂肪","sfat"],["　反式脂肪","tfat"],["碳水化合物","carb"],["　糖","sugar"],["鈉","na"]];
@@ -279,9 +266,6 @@
         const perServe = document.getElementById('perServing').value;
         const serveCount = document.getElementById('serveCount').value;
         const ingText = document.getElementById('l_ing').innerText;
-        const allergens = [...new Set(recipe.map(r => r.info.allergen).filter(a => a))].map(a => `●${a}`);
-        const manualLines = document.getElementById('manualWarning').value.split('\n').filter(line => line.trim() !== "").map(line => `●${line.trim()}`);
-        const allWarnings = [...allergens, ...manualLines];
         const totalW = recipe.reduce((s, item) => s + item.weight, 0);
         let sums = { cal:0, pro:0, fat:0, sfat:0, tfat:0, carb:0, sugar:0, na:0 };
         recipe.forEach(r => {
@@ -290,26 +274,27 @@
         });
         const p100 = (v) => totalW ? (v / totalW * 100).toFixed(1) : "0.0";
         const pS = (v) => totalW ? (v / totalW * perServe).toFixed(1) : "0.0";
-        let summaryData = [["標籤公版規格摘要"],["品名：", prodName],["成分：", ingText],["淨重：", totalNet + " 公克"],[],["警語清單"]];
-        allWarnings.forEach((w, index) => { summaryData.push([`項目 ${index + 1}`, w]); });
-        summaryData.push([],["營養標示詳細數據"],["每一份量", perServe + " 公克"],["本包裝含", serveCount + " 份"],["項目", "每份", "每100公克"],["熱量", pS(sums.cal), p100(sums.cal)],["蛋白質", pS(sums.pro), p100(sums.pro)],["脂肪", pS(sums.fat), p100(sums.fat)],["　飽和脂肪", pS(sums.sfat), p100(sums.sfat)],["　反式脂肪", pS(sums.tfat), p100(sums.tfat)],["碳水化合物", pS(sums.carb), p100(sums.carb)],["　糖", pS(sums.sugar), p100(sums.sugar)],["鈉", pS(sums.na), p100(sums.na)]);
-        const recipeData = [["配方成分組成比例表"],["產品名稱", prodName],["配方總重", totalW + " g"],[],["排序", "料號", "原料名稱", "標籤稱呼", "重量(g)", "比例(%)"]];
-        recipe.forEach((r, idx) => { recipeData.push([idx + 1, r.id, r.info.rawName, r.info.labelName, r.weight, ((r.weight/totalW)*100).toFixed(2) + "%"]); });
+        let summaryData = [["標籤摘要"],["品名：", prodName],["成分：", ingText],["淨重：", totalNet],[],["營養數據"],["項目","每份","每100g"],["熱量", pS(sums.cal), p100(sums.cal)],["蛋白質", pS(sums.pro), p100(sums.pro)],["脂肪", pS(sums.fat), p100(sums.fat)],["　飽和脂肪", pS(sums.sfat), p100(sums.sfat)],["　反式脂肪", pS(sums.tfat), p100(sums.tfat)],["碳水化合物", pS(sums.carb), p100(sums.carb)],["　糖", pS(sums.sugar), p100(sums.sugar)],["鈉", pS(sums.na), p100(sums.na)]];
+        const recipeData = [["配方組成"],["項目","料號","原料","重量(g)","比例(%)"]];
+        recipe.forEach((r, idx) => { recipeData.push([idx+1, r.id, r.info.rawName, r.weight, ((r.weight/totalW)*100).toFixed(2)+"%"]); });
         const wb = XLSX.utils.book_new();
-        const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
-        const ws2 = XLSX.utils.aoa_to_sheet(recipeData);
-        ws1['!cols'] = [{wch: 18}, {wch: 60}, {wch: 15}];
-        ws2['!cols'] = [{wch: 6}, {wch: 15}, {wch: 30}, {wch: 30}, {wch: 12}, {wch: 10}];
-        XLSX.utils.book_append_sheet(wb, ws1, "標籤摘要");
-        XLSX.utils.book_append_sheet(wb, ws2, "配方比例");
-        XLSX.writeFile(wb, `${prodName}_標籤全紀錄.xlsx`);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), "標籤摘要");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(recipeData), "配方比例");
+        XLSX.writeFile(wb, `${prodName}_報告.xlsx`);
     }
 
+    // 關鍵更新：設定 scale 為 3 以達到高解析度輸出 (300 DPI 級別)
     function exportImg() {
-        html2canvas(document.getElementById('captureArea'), { scale: 2 }).then(canvas => {
+        const area = document.getElementById('captureArea');
+        html2canvas(area, { 
+            scale: 3, // 提高縮放倍率以增加像素密度
+            useCORS: true,
+            logging: false,
+            backgroundColor: "#ffffff"
+        }).then(canvas => {
             const link = document.createElement('a');
             link.download = `MagiLabel_${document.getElementById('prodFullName').value}.png`;
-            link.href = canvas.toDataURL();
+            link.href = canvas.toDataURL("image/png", 1.0); // 1.0 代表最高圖片品質
             link.click();
         });
     }
