@@ -28,8 +28,9 @@
         .btn-edit { background: #3498db; padding: 2px 6px; font-size: 10px; margin-right: 2px; }
         .btn-del { background: #e74c3c; padding: 2px 6px; font-size: 10px; }
         .save-tools { display: flex; gap: 5px; margin-top: 10px; }
-        .btn-save { background: #8e44ad; }
-        .btn-load { background: #2c3e50; }
+        .btn-save { background: #8e44ad; flex: 1; }
+        .btn-load { background: #2c3e50; flex: 1; }
+        .btn-clear { background: #c0392b; flex: 1; }
 
         .preview { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 20px; background: #dfe6e9; overflow-y: auto; }
         #captureArea { width: 420px; background: #ffffff; color: #000000; padding: 25px; line-height: 1.5; font-size: 14px; border: 1px solid #000; }
@@ -73,8 +74,9 @@
     </div>
 
     <div class="save-tools">
-        <button class="btn-save" onclick="exportRecipeJSON()">💾 儲存配方檔</button>
-        <button class="btn-load" onclick="document.getElementById('fileLoader').click()">📂 讀取舊配方</button>
+        <button class="btn-save" onclick="exportRecipeJSON()">💾 儲存配方</button>
+        <button class="btn-load" onclick="document.getElementById('fileLoader').click()">📂 讀取配方</button>
+        <button class="btn-clear" onclick="clearAllData()">🗑️ 清空全部</button>
         <input type="file" id="fileLoader" style="display:none" accept=".json" onchange="importRecipeJSON(event)">
     </div>
 
@@ -113,7 +115,6 @@
     let db = {};
     let recipe = [];
 
-    // 初始化載入資料庫
     window.onload = async () => {
         try {
             const res = await fetch('ingredients.xlsx');
@@ -130,8 +131,22 @@
                     carb: row["碳水化合物"]||0, sugar: row["糖"]||0, na: row["鈉"]||0
                 };
             });
-        } catch(e) { console.error("Excel載入失敗，請確認檔案是否存在於根目錄。"); }
+        } catch(e) { console.error("資料庫載入失敗。"); }
     };
+
+    function clearAllData() {
+        if (confirm("確定要清空當前所有輸入的資料與配方嗎？(此動作無法還原)")) {
+            document.getElementById('prodFullName').value = "Magi Planet星球工坊爆米花";
+            document.getElementById('totalNet').value = "110";
+            document.getElementById('perServing').value = "110";
+            document.getElementById('serveCount').value = "1";
+            document.getElementById('manualWarning').value = "";
+            document.getElementById('idInput').value = "";
+            document.getElementById('wInput').value = "";
+            recipe = [];
+            updateAll();
+        }
+    }
 
     function calcServings(type) {
         let total = parseFloat(document.getElementById('totalNet').value) || 0;
@@ -163,7 +178,6 @@
         document.getElementById('idInput').value = ''; document.getElementById('wInput').value = '';
     }
 
-    // 編輯重量功能
     function editWeight(id) {
         const item = recipe.find(i => i.id === id);
         const newW = prompt(`修改 [${item.info.rawName}] 的克重：`, item.weight);
@@ -178,7 +192,6 @@
         updateAll(); 
     }
 
-    // 儲存配方為 JSON
     function exportRecipeJSON() {
         const data = {
             prodName: document.getElementById('prodFullName').value,
@@ -195,7 +208,6 @@
         a.click();
     }
 
-    // 讀取 JSON 配方
     function importRecipeJSON(event) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -205,10 +217,10 @@
                 document.getElementById('totalNet').value = data.totalNet;
                 document.getElementById('perServing').value = data.perServing;
                 document.getElementById('serveCount').value = data.serveCount;
-                document.getElementById('manualWarning').value = data.manualWarning;
+                document.getElementById('manualWarning').value = data.manualWarning || "";
                 recipe = data.recipe;
                 updateAll();
-            } catch (err) { alert("檔案讀取失敗，請確認是否為正確的配方存檔格式。"); }
+            } catch (err) { alert("讀取失敗。"); }
         };
         reader.readAsText(event.target.files[0]);
     }
@@ -242,7 +254,7 @@
         
         const allergens = [...new Set(recipe.map(r => r.info.allergen).filter(a => a))];
         document.getElementById('l_allergen').innerHTML = allergens.map(a => `●${a}`).join('<br>');
-        const manualLines = document.getElementById('manualWarning').value.split('\n').filter(line => line.trim() !== "");
+        const manualLines = (document.getElementById('manualWarning').value || "").split('\n').filter(line => line.trim() !== "");
         document.getElementById('l_manual_warning').innerHTML = manualLines.map(line => `●${line.trim()}`).join('<br>');
 
         let sums = { cal:0, pro:0, fat:0, sfat:0, tfat:0, carb:0, sugar:0, na:0 };
