@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Magi Planet 標籤編輯系統 - 自動排序專業版</title>
+    <title>Magi Planet 標籤編輯系統 - 進階存檔版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -24,7 +24,12 @@
         .recipe-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
         .recipe-table th { background: #eee; padding: 8px; text-align: left; }
         .recipe-table td { border: 1px solid #eee; padding: 8px; }
-        .sort-hint { font-size: 11px; color: #7f8c8d; font-style: italic; margin-bottom: 5px; }
+        
+        .btn-edit { background: #3498db; padding: 2px 6px; font-size: 10px; margin-right: 2px; }
+        .btn-del { background: #e74c3c; padding: 2px 6px; font-size: 10px; }
+        .save-tools { display: flex; gap: 5px; margin-top: 10px; }
+        .btn-save { background: #8e44ad; }
+        .btn-load { background: #2c3e50; }
 
         .preview { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 20px; background: #dfe6e9; overflow-y: auto; }
         #captureArea { width: 420px; background: #ffffff; color: #000000; padding: 25px; line-height: 1.5; font-size: 14px; border: 1px solid #000; }
@@ -45,23 +50,21 @@
     <h2>Magi Planet 標籤編輯系統</h2>
     
     <div class="input-group">
-        <label>產品全名 (品名)：</label>
-        <input type="text" id="prodFullName" value="Magi Planet星球工坊爆米花(玉米濃湯口味)" oninput="updateAll()">
-        
+        <label>產品全名：</label>
+        <input type="text" id="prodFullName" value="Magi Planet星球工坊爆米花" oninput="updateAll()">
         <div class="flex-row" style="margin-top:10px;">
             <div><label>總淨重(g)</label><input type="number" id="totalNet" value="110" oninput="calcServings('total')"></div>
             <div><label>每一份(g)</label><input type="number" id="perServing" value="110" oninput="calcServings('per')"></div>
             <div><label>包裝份數</label><input type="number" id="serveCount" value="1" oninput="calcServings('count')"></div>
         </div>
-
         <div style="margin-top:10px;">
-            <label>手動新增警語 (換行自動帶入 ●)：</label>
-            <textarea id="manualWarning" placeholder="請輸入警語..." oninput="updateAll()"></textarea>
+            <label>警語 (換行自動帶入 ●)：</label>
+            <textarea id="manualWarning" oninput="updateAll()"></textarea>
         </div>
     </div>
 
     <div class="input-group" style="background: #eef2f7; border-color: #bcd0e7;">
-        <label>輸入料號檢索：</label>
+        <label>料號檢索：</label>
         <input type="text" id="idInput" oninput="previewIngredient()">
         <div id="ingPreview">-- 請輸入料號 --</div>
         <label style="margin-top: 5px;">重量 (g)：</label>
@@ -69,7 +72,12 @@
         <button onclick="addToRecipe()" style="background:#2980b9;">加入配方</button>
     </div>
 
-    <div class="sort-hint">※ 列表已設定依配方百分比由大至小自動排序</div>
+    <div class="save-tools">
+        <button class="btn-save" onclick="exportRecipeJSON()">💾 匯出配方檔 (JSON)</button>
+        <button class="btn-load" onclick="document.getElementById('fileLoader').click()">📂 讀取舊配方</button>
+        <input type="file" id="fileLoader" style="display:none" accept=".json" onchange="importRecipeJSON(event)">
+    </div>
+
     <table class="recipe-table" id="recipeTable">
         <thead><tr><th>名稱</th><th>重量</th><th>%</th><th>操作</th></tr></thead>
         <tbody></tbody>
@@ -82,12 +90,10 @@
         <p><b>品名：</b><span id="l_name"></span></p>
         <p><b>成分：</b><span id="l_ing" style="font-weight: normal;"></span></p>
         <p><b>淨重：</b><span id="l_net"></span> 公克</p>
-        
         <div id="warning_section" style="margin-top: 10px; font-weight: bold;">
             <div id="l_allergen"></div>
             <div id="l_manual_warning"></div>
         </div>
-        
         <div class="nutri-box">
             <table class="nutri-table">
                 <tr><td colspan="3" align="center" style="font-size:16px; border-bottom: 2px solid #000;">營養標示</td></tr>
@@ -97,7 +103,6 @@
             </table>
         </div>
     </div>
-    
     <div class="action-btns">
         <button class="btn-black" onclick="exportImg()">📷 下載圖片</button>
         <button class="btn-green" onclick="exportExcel()">📊 下載完整 EXCEL</button>
@@ -150,14 +155,21 @@
         const id = document.getElementById('idInput').value.trim();
         const w = parseFloat(document.getElementById('wInput').value);
         if(!db[id] || isNaN(w)) return;
-        
-        // 檢查是否重複，若重複則累加重量
         const existing = recipe.find(item => item.id === id);
         if(existing) { existing.weight += w; } 
         else { recipe.push({ id, weight: w, info: db[id] }); }
-        
         updateAll();
         document.getElementById('idInput').value = ''; document.getElementById('wInput').value = '';
+    }
+
+    // 編輯按鈕邏輯
+    function editWeight(id) {
+        const item = recipe.find(i => i.id === id);
+        const newW = prompt(`修改 ${item.info.rawName} 的克重：`, item.weight);
+        if (newW !== null && !isNaN(parseFloat(newW))) {
+            item.weight = parseFloat(newW);
+            updateAll();
+        }
     }
 
     function removeIng(id) { 
@@ -165,17 +177,55 @@
         updateAll(); 
     }
 
-    function updateAll() {
-        // 核心邏輯：在渲染前先根據重量排序 (由大到小)
-        recipe.sort((a, b) => b.weight - a.weight);
+    // 配方存檔功能
+    function exportRecipeJSON() {
+        const data = {
+            prodName: document.getElementById('prodFullName').value,
+            totalNet: document.getElementById('totalNet').value,
+            perServing: document.getElementById('perServing').value,
+            serveCount: document.getElementById('serveCount').value,
+            manualWarning: document.getElementById('manualWarning').value,
+            recipe: recipe
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${data.prodName}_配方存檔.json`;
+        a.click();
+    }
 
+    // 讀取配方功能
+    function importRecipeJSON(event) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = JSON.parse(e.target.result);
+            document.getElementById('prodFullName').value = data.prodName;
+            document.getElementById('totalNet').value = data.totalNet;
+            document.getElementById('perServing').value = data.perServing;
+            document.getElementById('serveCount').value = data.serveCount;
+            document.getElementById('manualWarning').value = data.manualWarning;
+            recipe = data.recipe;
+            updateAll();
+        };
+        reader.readAsText(event.target.files[0]);
+    }
+
+    function updateAll() {
+        recipe.sort((a, b) => b.weight - a.weight);
         const totalW = recipe.reduce((s, item) => s + item.weight, 0);
         const tbody = document.querySelector('#recipeTable tbody');
         tbody.innerHTML = '';
-        
         recipe.forEach((item) => {
             const pct = totalW ? ((item.weight / totalW) * 100).toFixed(1) : 0;
-            tbody.innerHTML += `<tr><td>${item.info.rawName}</td><td>${item.weight}g</td><td style="color:#e67e22; font-weight:bold;">${pct}%</td><td><button onclick="removeIng('${item.id}')" style="padding:2px; font-size:10px;">✕</button></td></tr>`;
+            tbody.innerHTML += `<tr>
+                <td>${item.info.rawName}</td>
+                <td>${item.weight}g</td>
+                <td style="color:#e67e22; font-weight:bold;">${pct}%</td>
+                <td>
+                    <button class="btn-edit" onclick="editWeight('${item.id}')">編</button>
+                    <button class="btn-del" onclick="removeIng('${item.id}')">✕</button>
+                </td>
+            </tr>`;
         });
 
         document.getElementById('l_name').innerText = document.getElementById('prodFullName').value;
@@ -185,13 +235,9 @@
         document.getElementById('l_net').innerText = totalNet;
         document.getElementById('n_each').innerText = perServe;
         document.getElementById('n_count').innerText = count;
-
-        // 標籤成分自動帶入排序後的名稱
         document.getElementById('l_ing').innerText = recipe.map(s => s.info.labelName).join('、');
-
         const allergens = [...new Set(recipe.map(r => r.info.allergen).filter(a => a))];
         document.getElementById('l_allergen').innerHTML = allergens.map(a => `●${a}`).join('<br>');
-        
         const manualLines = document.getElementById('manualWarning').value.split('\n').filter(line => line.trim() !== "");
         document.getElementById('l_manual_warning').innerHTML = manualLines.map(line => `●${line.trim()}`).join('<br>');
 
@@ -211,17 +257,16 @@
         document.getElementById('n_rows').innerHTML = html;
     }
 
+    // (Excel與圖片下載邏輯維持不變...)
     function exportExcel() {
         const prodName = document.getElementById('prodFullName').value;
         const totalNet = document.getElementById('totalNet').value;
         const perServe = document.getElementById('perServing').value;
         const serveCount = document.getElementById('serveCount').value;
         const ingText = document.getElementById('l_ing').innerText;
-        
         const allergens = [...new Set(recipe.map(r => r.info.allergen).filter(a => a))].map(a => `●${a}`);
         const manualLines = document.getElementById('manualWarning').value.split('\n').filter(line => line.trim() !== "").map(line => `●${line.trim()}`);
         const allWarnings = [...allergens, ...manualLines];
-
         const totalW = recipe.reduce((s, item) => s + item.weight, 0);
         let sums = { cal:0, pro:0, fat:0, sfat:0, tfat:0, carb:0, sugar:0, na:0 };
         recipe.forEach(r => {
@@ -230,58 +275,19 @@
         });
         const p100 = (v) => totalW ? (v / totalW * 100).toFixed(1) : "0.0";
         const pS = (v) => totalW ? (v / totalW * perServe).toFixed(1) : "0.0";
-
-        let summaryData = [
-            ["營 養 標 示 (標籤公版格式)"],
-            ["品名：", prodName],
-            ["成分：", ingText],
-            ["淨重：", totalNet + " 公克"],
-            [],
-            ["警語條列 (分欄列出)"]
-        ];
-        
-        allWarnings.forEach((w, index) => {
-            summaryData.push([`項目 ${index + 1}`, w]);
-        });
-
-        summaryData.push(
-            [],
-            ["營養標示明細"],
-            ["每一份量", perServe + " 公克"],
-            ["本包裝含", serveCount + " 份"],
-            ["項目", "每份", "每100公克"],
-            ["熱量", pS(sums.cal), p100(sums.cal)],
-            ["蛋白質", pS(sums.pro), p100(sums.pro)],
-            ["脂肪", pS(sums.fat), p100(sums.fat)],
-            ["　飽和脂肪", pS(sums.sfat), p100(sums.sfat)],
-            ["　反式脂肪", pS(sums.tfat), p100(sums.tfat)],
-            ["碳水化合物", pS(sums.carb), p100(sums.carb)],
-            ["　糖", pS(sums.sugar), p100(sums.sugar)],
-            ["鈉", pS(sums.na), p100(sums.na)]
-        );
-
-        // 配方頁：同樣確保匯出時也是依百分比排序
-        recipe.sort((a, b) => b.weight - a.weight);
-        const recipeData = [
-            ["配方比例組成分析 (依含量由高至低排列)"],
-            ["產品名稱", prodName],
-            ["配方總重", totalW + " g"],
-            [],
-            ["排序", "料號", "原料名稱", "標籤稱呼", "重量(g)", "比例(%)"]
-        ];
-        recipe.forEach((r, idx) => {
-            recipeData.push([idx + 1, r.id, r.info.rawName, r.info.labelName, r.weight, ((r.weight/totalW)*100).toFixed(2) + "%"]);
-        });
-
+        let summaryData = [["營 養 標 示 (標籤公版格式)"],["品名：", prodName],["成分：", ingText],["淨重：", totalNet + " 公克"],[],["警語條列 (分欄列出)"]];
+        allWarnings.forEach((w, index) => { summaryData.push([`項目 ${index + 1}`, w]); });
+        summaryData.push([],["營養標示明細"],["每一份量", perServe + " 公克"],["本包裝含", serveCount + " 份"],["項目", "每份", "每100公克"],["熱量", pS(sums.cal), p100(sums.cal)],["蛋白質", pS(sums.pro), p100(sums.pro)],["脂肪", pS(sums.fat), p100(sums.fat)],["　飽和脂肪", pS(sums.sfat), p100(sums.sfat)],["　反式脂肪", pS(sums.tfat), p100(sums.tfat)],["碳水化合物", pS(sums.carb), p100(sums.carb)],["　糖", pS(sums.sugar), p100(sums.sugar)],["鈉", pS(sums.na), p100(sums.na)]);
+        const recipeData = [["配方比例組成分析"],["產品名稱", prodName],["配方總重", totalW + " g"],[],["排序", "料號", "原料名稱", "標籤稱呼", "重量(g)", "比例(%)"]];
+        recipe.forEach((r, idx) => { recipeData.push([idx + 1, r.id, r.info.rawName, r.info.labelName, r.weight, ((r.weight/totalW)*100).toFixed(2) + "%"]); });
         const wb = XLSX.utils.book_new();
         const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
         const ws2 = XLSX.utils.aoa_to_sheet(recipeData);
         ws1['!cols'] = [{wch: 18}, {wch: 60}, {wch: 15}];
         ws2['!cols'] = [{wch: 6}, {wch: 15}, {wch: 30}, {wch: 30}, {wch: 12}, {wch: 10}];
-        
         XLSX.utils.book_append_sheet(wb, ws1, "1.標籤摘要");
         XLSX.utils.book_append_sheet(wb, ws2, "2.內部配方比例");
-        XLSX.writeFile(wb, `${prodName}_標籤開發全紀錄.xlsx`);
+        XLSX.writeFile(wb, `${prodName}_標籤全紀錄.xlsx`);
     }
 
     function exportImg() {
